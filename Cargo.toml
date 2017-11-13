@@ -1,0 +1,6 @@
+[package]
+name = "surtch-index"
+version = "0.1.0"
+authors = ["Emmanuel Keller <ekeller@open-search-server.com>"]
+
+[dependencies]

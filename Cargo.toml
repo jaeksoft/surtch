@@ -1,5 +1,5 @@
 [package]
-name = "surtch-index"
+name = "surtch"
 version = "0.1.0"
 authors = ["Emmanuel Keller <ekeller@open-search-server.com>"]
 

@@ -1,6 +1,6 @@
 extern crate fst;
-
-use std::collections::HashMap;
+extern crate uuid;
+extern crate time;
 
 pub mod field;
 pub mod segment;

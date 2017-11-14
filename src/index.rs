@@ -8,7 +8,9 @@ pub mod index {
     use std::path::PathBuf;
     use std::fs;
     use std::fs::File;
-    use fst::{IntoStreamer, Streamer, Map, MapBuilder, Result};
+    use uuid::{Uuid, UuidV1Context};
+    use fst::{MapBuilder, Result};
+    use time;
 
     pub struct Index {
         pub path: String,
@@ -35,29 +37,33 @@ pub mod index {
         }
 
         pub fn insert(&self, documents: &Vec<Document>) -> Result<()> {
-            //TODO get next segment number
-            for document in documents { self.insert_document(document); }
+            let ctx = UuidV1Context::new(42);
+            let v1uuid = Uuid::new_v1(&ctx, time::precise_time_s() as u64, time::precise_time_ns() as u32, &[1, 2, 3, 4, 5, 6]).unwrap();
+            let segment_name = v1uuid.hyphenated().to_string();
+            let segment_path: PathBuf = [&self.path, &segment_name].iter().collect();
+            fs::create_dir(segment_path)?;
+            for document in documents { self.insert_document(&segment_name, document); }
             return Ok({});
         }
 
-        fn insert_document(&self, document: &Document) -> Result<()> {
+        fn insert_document(&self, segment_name: &str, document: &Document) -> Result<()> {
             for (field, terms) in &document.fields {
-                self.insert_field(1, field.as_ref(), terms)?;
+                self.insert_field(segment_name, field.as_ref(), terms)?;
             }
             return Ok({});
         }
 
-        fn insert_field(&self, segment_number: u64, field: &str, terms: &Terms) -> Result<()> {
+        fn insert_field(&self, segment_name: &str, field: &str, terms: &Terms) -> Result<()> {
             let field_fst = field.to_string() + ".fst";
-            let field_path: PathBuf = [&self.path, &field_fst].iter().collect();
-            let mut wtr = io::BufWriter::new(try!(File::create(field_path)));
+            let field_path: PathBuf = [&self.path, segment_name, &field_fst].iter().collect();
+            let mut wtr = io::BufWriter::new(File::create(field_path)?);
             let mut build = try!(MapBuilder::new(wtr));
             let mut pos = 0;
             for (term, positions) in &terms.term_positions {
                 build.insert(term, pos)?;
                 pos = pos + 1;
             }
-            try!(build.finish());
+            build.finish()?;
             return Ok({});
         }
     }

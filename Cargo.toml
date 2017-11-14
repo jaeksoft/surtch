@@ -7,3 +7,5 @@ authors = ["Emmanuel Keller <ekeller@open-search-server.com>"]
 fst = "0.2"
 uuid = { version = "0.5", features = ["v1"] }
 time = "0.1"
+snap = "0.2"
+bincode = "0.9.2"

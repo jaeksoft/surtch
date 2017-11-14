@@ -1,9 +1,9 @@
 pub mod index {
     use std::collections::HashMap;
     use segment::segment::Segment;
-    use terms::terms::Terms;
-    use document::document::Document;
+    use document::document::{Document, Terms};
     use std::io;
+    use std::io::Write;
     use std::path::Path;
     use std::path::PathBuf;
     use std::fs;
@@ -11,6 +11,8 @@ pub mod index {
     use uuid::{Uuid, UuidV1Context};
     use fst::{MapBuilder, Result};
     use time;
+    use snap;
+    use bincode::{serialize, deserialize, Infinite};
 
     pub struct Index {
         pub path: String,
@@ -54,16 +56,27 @@ pub mod index {
         }
 
         fn insert_field(&self, segment_name: &str, field: &str, terms: &Terms) -> Result<()> {
-            let field_fst = field.to_string() + ".fst";
-            let field_path: PathBuf = [&self.path, segment_name, &field_fst].iter().collect();
-            let mut wtr = io::BufWriter::new(File::create(field_path)?);
-            let mut build = try!(MapBuilder::new(wtr));
+            // Setup the FST file
+            let fst_name = field.to_string() + ".fst";
+            let fst_path: PathBuf = [&self.path, segment_name, &fst_name].iter().collect();
+            let mut fst_writer = io::BufWriter::new(File::create(fst_path)?);
+            let mut build = try!(MapBuilder::new(fst_writer));
+
+            // Setup the POS file
+            let pos_name = field.to_string() + ".pos";
+            let pos_path: PathBuf = [&self.path, segment_name, &pos_name].iter().collect();
+            let mut pos_writer = io::BufWriter::new(File::create(pos_path)?);
+            let mut snap_writer = snap::Writer::new(pos_writer);
+
             let mut pos = 0;
-            for (term, positions) in &terms.term_positions {
+            for (term, positions) in terms.term_positions.iter() {
                 build.insert(term, pos)?;
-                pos = pos + 1;
+                let encoded: Vec<u8> = serialize(positions, Infinite).unwrap();
+                let usize = snap_writer.write(&encoded)?;
+                pos += 1;
             }
             build.finish()?;
+            snap_writer.flush()?;
             return Ok({});
         }
     }

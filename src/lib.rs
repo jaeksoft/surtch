@@ -3,6 +3,7 @@ extern crate uuid;
 extern crate time;
 extern crate snap;
 extern crate bincode;
+extern crate roaring;
 
 pub mod field;
 pub mod segment;

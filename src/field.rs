@@ -1,5 +1,6 @@
 pub mod field {
     pub struct Field {
-        name: String
+        name: String,
+        positions: Vec<i32>
     }
 }

@@ -34,26 +34,26 @@ pub mod index {
             return Ok(Index { path: index_path.to_string(), segments: segments });
         }
 
-        pub fn insert(&self, documents: Vec<Document>) -> Result<()> {
+        pub fn insert(&self, documents: &Vec<Document>) -> Result<()> {
             //TODO get next segment number
             for document in documents { self.insert_document(document); }
             return Ok({});
         }
 
-        fn insert_document(&self, document: Document) -> Result<()> {
-            for (field, terms) in document.fields {
+        fn insert_document(&self, document: &Document) -> Result<()> {
+            for (field, terms) in &document.fields {
                 self.insert_field(1, field.as_ref(), terms)?;
             }
             return Ok({});
         }
 
-        fn insert_field(&self, segment_number: u64, field: &str, terms: Terms) -> Result<()> {
+        fn insert_field(&self, segment_number: u64, field: &str, terms: &Terms) -> Result<()> {
             let field_fst = field.to_string() + ".fst";
             let field_path: PathBuf = [&self.path, &field_fst].iter().collect();
             let mut wtr = io::BufWriter::new(try!(File::create(field_path)));
             let mut build = try!(MapBuilder::new(wtr));
             let mut pos = 0;
-            for (term, positions) in terms.term_positions {
+            for (term, positions) in &terms.term_positions {
                 build.insert(term, pos)?;
                 pos = pos + 1;
             }

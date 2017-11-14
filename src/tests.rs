@@ -17,11 +17,17 @@ mod tests {
         documents.push(document1);
 
         let mut document2 = Document::new();
-        document2.field("id").term("id1", 1);
+        document2.field("id").term("id2", 1);
         document2.field("title").term("my", 0).term("second", 1).term("title", 2).term("titles", 2);
         documents.push(document2);
 
-        assert!(index.insert(documents).is_ok());
+        let mut document3 = Document::new();
+        document3.field("id").term("id3", 1);
+        document3.field("title").term("my", 0).term("thrid", 1).term("title", 2).term("titles", 2);
+        document3.field("content").term("the", 0).term("content", 1).term("of", 2).term("the", 3).term("document", 3);
+        documents.push(document3);
+
+        assert!(index.insert(&documents).is_ok());
     }
 
     #[test]

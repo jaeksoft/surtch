@@ -1,10 +1,9 @@
 pub mod index {
     use std::collections::{HashMap, BTreeMap};
     use segment::segment::Segment;
-    use document::document::{Document, Terms};
+    use document::document::Document;
     use std::io;
     use std::io::Write;
-    use std::io::BufWriter;
     use std::path::Path;
     use std::path::PathBuf;
     use std::fs;
@@ -13,8 +12,9 @@ pub mod index {
     use fst::{MapBuilder, Result};
     use time;
     use snap;
-    use bincode::{serialize, deserialize, Infinite};
     use roaring::bitmap::RoaringBitmap;
+    use byteorder::{LittleEndian, WriteBytesExt};
+    use conv::*;
 
     pub struct Index {
         pub path: String,
@@ -100,19 +100,51 @@ pub mod index {
             for (field, term_map) in field_infos {
                 let mut fst_builder = MapBuilder::new(self.new_segment_writer(&segment_name, &field, ".fst")?)?;
                 let mut dox_writer = snap::Writer::new(self.new_segment_writer(&segment_name, &field, ".dox")?);
+                let mut docs_writer = snap::Writer::new(self.new_segment_writer(&segment_name, &field, ".docs")?);
+                let mut pox_writer = snap::Writer::new(self.new_segment_writer(&segment_name, &field, ".pox")?);
+                let mut posx_writer = snap::Writer::new(self.new_segment_writer(&segment_name, &field, ".posx")?);
+                let mut posi_writer = snap::Writer::new(self.new_segment_writer(&segment_name, &field, ".posi")?);
 
                 let mut term_idx: u64 = 0;
-                let mut pos_offset: u32 = 0;
-                let mut doc_offset: u32 = 0;
+                let mut docs_offset: u32 = 0;
+                let mut posx_offset: u32 = 0;
+                let mut posi_offset: u32 = 0;
                 for (term, term_infos) in term_map {
-                    fst_builder.insert(term, term_idx);
-                    //let encoded: Vec<u8> = serialize(positions, Infinite).unwrap();
-                    //let usize = self.pos_snap_writer.write(&encoded)?;
+                    // Write FST
+                    fst_builder.insert(term, term_idx)?;
+
+                    // Write DOX
+                    dox_writer.write_u32::<LittleEndian>(docs_offset)?;
+
+                    //Write DOCS bitset
+                    let rb: RoaringBitmap = term_infos.doc_ids;
+                    let rb_size: u32 = u32::value_from(rb.serialized_size()).unwrap();
+                    docs_writer.write_u32::<LittleEndian>(rb_size)?;
+                    rb.serialize_into(&mut docs_writer)?;
+                    docs_offset += 4 + rb_size;
+
+                    //Write POX
+                    pox_writer.write_u32::<LittleEndian>(posx_offset)?;
+                    for positions in term_infos.positions {
+                        //println!("IDX: {} - DOX: {} - POSX: {} - POSI: {}", term_idx, docs_offset, posx_offset, posi_offset);
+                        //Write POSX = current position offset and positions length
+                        posx_writer.write_u32::<LittleEndian>(posi_offset)?;
+                        posx_writer.write_u32::<LittleEndian>(u32::value_from(positions.len()).unwrap())?;
+                        posx_offset += 8;
+                        // Write positions
+                        for position in positions {
+                            posi_writer.write_u32::<LittleEndian>(position)?;
+                            posi_offset += 4;
+                        }
+                    }
                     term_idx += 1;
                 }
 
                 fst_builder.finish()?;
-
+                posx_writer.flush()?;
+                posi_writer.flush()?;
+                pox_writer.flush()?;
+                docs_writer.flush()?;
                 dox_writer.flush()?;
             }
             return Ok({});

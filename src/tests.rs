@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use index::index::Index;
     use document::document::Document;
 
@@ -23,9 +22,15 @@ mod tests {
 
         let mut document3 = Document::new();
         document3.field("id").term("id3", 1);
-        document3.field("title").term("my", 0).term("thrid", 1).term("title", 2).term("titles", 2);
-        document3.field("content").term("the", 0).term("content", 1).term("of", 2).term("the", 3).term("document", 3);
+        document3.field("title").term("my", 0).term("third", 1).term("title", 2).term("titles", 2);
+        document3.field("content").term("the", 0).term("content", 1).term("of", 2).term("the", 3).term("document", 4).term("of", 5);
         documents.push(document3);
+
+        let mut document4 = Document::new();
+        document4.field("id").term("id4", 1);
+        document4.field("title").term("my", 0).term("four", 1).term("title", 2).term("titles", 2);
+        document4.field("content").term("the", 0).term("content", 1).term("of", 2).term("the", 3).term("document", 4).term("of", 5);
+        documents.push(document4);
 
         assert!(index.create_segment(&documents).is_ok());
     }

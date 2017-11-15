@@ -2,15 +2,14 @@ extern crate fst;
 extern crate uuid;
 extern crate time;
 extern crate snap;
-extern crate bincode;
 extern crate roaring;
+extern crate byteorder;
+extern crate conv;
 
 pub mod field;
 pub mod segment;
 pub mod index;
 pub mod document;
-
-use index::index::Index;
 
 #[cfg(test)]
 mod tests;

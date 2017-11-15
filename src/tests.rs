@@ -27,7 +27,7 @@ mod tests {
         document3.field("content").term("the", 0).term("content", 1).term("of", 2).term("the", 3).term("document", 3);
         documents.push(document3);
 
-        assert!(index.insert(&documents).is_ok());
+        assert!(index.create_segment(&documents).is_ok());
     }
 
     #[test]

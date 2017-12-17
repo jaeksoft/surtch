@@ -1,36 +1,36 @@
 use std::collections::HashMap;
-use catalog::Catalog;
+use reader::FieldReader;
 use document::Document;
 use std::path::Path;
 use std::fs;
 use uuid::Uuid;
-use fieldwriter::SegmentWriter;
+use writer::SegmentWriter;
 use fst::Result;
 
 pub struct Index {
     /// The path of the index directory
     pub path: String,
     /// The available catalogs
-    catalogs: HashMap<Uuid, Catalog>,
+    fields: HashMap<String, FieldReader>,
 }
 
 impl Index {
     /// Open an existing index, or create a new one.
-    pub fn new(index_path: &str) -> Result<Index> {
+    pub fn open(index_path: &str) -> Result<Index> {
         let p = Path::new(index_path);
         if !p.exists() {
             fs::create_dir(p)?
         }
-        // Read the existing segments
-        let segments = HashMap::new();
-        //for entry in fs::read_dir(p)? {
-        //    let dir_entry = entry?;
-        //    if dir_entry.file_type()?.is_dir() {
-        //        let dir_name = dir_entry.file_name().into_string().unwrap();
-        //        segments.insert(dir_name.to_string(), Segment::new(dir_name.as_ref())?);
-        //    }
-        //}
-        return Ok(Index { path: index_path.to_string(), catalogs: segments });
+        // Read the fields
+        let mut fields = HashMap::new();
+        for entry in fs::read_dir(p)? {
+            let dir_entry = entry?;
+            if dir_entry.file_type()?.is_dir() {
+                let field_name = dir_entry.file_name().into_string().unwrap();
+                fields.insert(field_name.to_string(), FieldReader::open(&index_path, &field_name)?);
+            }
+        }
+        return Ok(Index { path: index_path.to_string(), fields });
     }
 
     ///

@@ -6,8 +6,8 @@ extern crate roaring;
 extern crate byteorder;
 extern crate conv;
 
-pub mod fieldwriter;
-pub mod catalog;
+pub mod writer;
+pub mod reader;
 pub mod index;
 pub mod document;
 

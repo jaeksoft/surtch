@@ -8,7 +8,7 @@ use std::io;
 use std::fs;
 use std::fs::File;
 use time;
-use snap::Writer;
+use snap;
 use roaring::bitmap::RoaringBitmap;
 use byteorder::{LittleEndian, WriteBytesExt};
 use conv::*;
@@ -24,11 +24,11 @@ pub struct SegmentWriter {
     segment_path_temp: PathBuf,
     segment_path_final: PathBuf,
     fst_builder: MapBuilder<BufWriter<File>>,
-    dox_writer: Writer<BufWriter<File>>,
-    pox_writer: Writer<BufWriter<File>>,
-    docs_writer: Writer<BufWriter<File>>,
-    posx_writer: Writer<BufWriter<File>>,
-    posi_writer: Writer<BufWriter<File>>,
+    dox_writer: snap::Writer<BufWriter<File>>,
+    pox_writer: snap::Writer<BufWriter<File>>,
+    docs_writer: snap::Writer<BufWriter<File>>,
+    posx_writer: snap::Writer<BufWriter<File>>,
+    posi_writer: snap::Writer<BufWriter<File>>,
 }
 
 impl SegmentWriter {
@@ -87,11 +87,11 @@ impl SegmentWriter {
         fs::create_dir_all(&segment_path_temp)?;
         /// Create the writers
         let fst_builder = MapBuilder::new(SegmentWriter::new_file_writer(index_path, field_name, &segment_name_temp, "fst")?)?;
-        let dox_writer = Writer::new(SegmentWriter::new_file_writer(index_path, field_name, &segment_name_temp, "dox")?);
-        let docs_writer = Writer::new(SegmentWriter::new_file_writer(index_path, field_name, &segment_name_temp, "docs")?);
-        let pox_writer = Writer::new(SegmentWriter::new_file_writer(index_path, field_name, &segment_name_temp, "pox")?);
-        let posx_writer = Writer::new(SegmentWriter::new_file_writer(index_path, field_name, &segment_name_temp, "posx")?);
-        let posi_writer = Writer::new(SegmentWriter::new_file_writer(index_path, field_name, &segment_name_temp, "posi")?);
+        let dox_writer = snap::Writer::new(SegmentWriter::new_file_writer(index_path, field_name, &segment_name_temp, "dox")?);
+        let docs_writer = snap::Writer::new(SegmentWriter::new_file_writer(index_path, field_name, &segment_name_temp, "docs")?);
+        let pox_writer = snap::Writer::new(SegmentWriter::new_file_writer(index_path, field_name, &segment_name_temp, "pox")?);
+        let posx_writer = snap::Writer::new(SegmentWriter::new_file_writer(index_path, field_name, &segment_name_temp, "posx")?);
+        let posi_writer = snap::Writer::new(SegmentWriter::new_file_writer(index_path, field_name, &segment_name_temp, "posi")?);
         return Ok(SegmentWriter { segment_path_temp, segment_path_final, fst_builder, dox_writer, docs_writer, pox_writer, posx_writer, posi_writer });
     }
 
@@ -105,22 +105,19 @@ impl SegmentWriter {
 
     fn index_terms(&mut self, term_map: TermMap) -> Result<()> {
         let mut term_idx: u64 = 0;
-        let mut docs_offset: u32 = 0;
         let mut posx_offset: u32 = 0;
         let mut posi_offset: u32 = 0;
         for (term, term_infos) in term_map {
             // Write FST
-            self.fst_builder.insert(term, term_idx)?;
-
-            // Write DOX
-            self.dox_writer.write_u32::<LittleEndian>(docs_offset)?;
+            self.fst_builder.insert(&term, term_idx)?;
 
             //Write DOCS bitset
             let rb: RoaringBitmap = term_infos.doc_ids;
-            let rb_size: u32 = u32::value_from(rb.serialized_size()).unwrap();
-            self.docs_writer.write_u32::<LittleEndian>(rb_size)?;
+            let rb_size: u32 = rb.serialized_size() as u32;
             rb.serialize_into(&mut self.docs_writer)?;
-            docs_offset += 4 + rb_size;
+
+            // Write DOX -> offset to bitset AND size of the serialized RoaringBitmap
+            self.dox_writer.write_u32::<LittleEndian>(rb_size)?;
 
             //Write POX
             self.pox_writer.write_u32::<LittleEndian>(posx_offset)?;
@@ -128,7 +125,7 @@ impl SegmentWriter {
                 //println!("IDX: {} - DOX: {} - POSX: {} - POSI: {}", term_idx, docs_offset, posx_offset, posi_offset);
                 //Write POSX = current position offset and positions length
                 self.posx_writer.write_u32::<LittleEndian>(posi_offset)?;
-                self.posx_writer.write_u32::<LittleEndian>(u32::value_from(positions.len()).unwrap())?;
+                self.posx_writer.write_u32::<LittleEndian>(positions.len() as u32)?;
                 posx_offset += 8;
                 // Write positions
                 for position in positions {

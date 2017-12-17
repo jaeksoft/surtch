@@ -5,7 +5,7 @@ mod tests {
 
     #[test]
     fn create_index() {
-        let index = Index::new("target/test").unwrap();
+        let index = Index::open("target/test").unwrap();
         assert_eq!(index.path, "target/test");
 
         let mut documents = Vec::new();
@@ -37,7 +37,7 @@ mod tests {
 
     #[test]
     fn fail_on_create_index_sub_directory() {
-        let result = Index::new("target/test/test/test");
+        let result = Index::open("target/test/test/test");
         assert!(result.is_err());
     }
 }

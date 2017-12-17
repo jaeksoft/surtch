@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use index::index::Index;
-    use document::document::Document;
+    use index::Index;
+    use document::Document;
 
     #[test]
     fn create_index() {
@@ -32,7 +32,7 @@ mod tests {
         document4.field("content").term("the", 0).term("content", 1).term("of", 2).term("the", 3).term("document", 4).term("of", 5);
         documents.push(document4);
 
-        assert!(index.create_segment(&documents).is_ok());
+        assert!(index.put(&documents).is_ok());
     }
 
     #[test]

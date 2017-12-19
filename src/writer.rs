@@ -45,12 +45,14 @@ impl SegmentWriter {
                 // Terms loop
                 for (term, positions) in terms.term_positions.iter() {
                     //TODO Do we really need to_string ?
-                    let term_infos = field_info_builder.entry(term.to_string()).or_insert_with(|| TermInfos {
-                        doc_ids: RoaringBitmap::new(),
-                        positions: Vec::new(),
-                    });
-                    term_infos.doc_ids.insert(doc_num);
-                    term_infos.positions.push(positions.clone());
+                    if !field_info_builder.contains_key(term) {
+                        let term_infos = field_info_builder.entry(term.to_string()).or_insert_with(|| TermInfos {
+                            doc_ids: RoaringBitmap::new(),
+                            positions: Vec::new(),
+                        });
+                        term_infos.doc_ids.insert(doc_num);
+                        term_infos.positions.push(positions.clone());
+                    }
                 }
             }
             doc_num += 1;

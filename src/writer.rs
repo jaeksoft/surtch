@@ -11,7 +11,6 @@ use time;
 use snap;
 use roaring::bitmap::RoaringBitmap;
 use byteorder::{LittleEndian, WriteBytesExt};
-use conv::*;
 use document::Document;
 
 /// For one term, the documents ids and the positions in the current field
@@ -42,11 +41,11 @@ impl SegmentWriter {
             // Fields loop
             for (field, terms) in &document.fields {
                 //TODO Do we really need to_string ?
-                let field_info_builder = field_infos.entry(field.to_string()).or_insert(BTreeMap::new());
+                let field_info_builder = field_infos.entry(field.to_string()).or_insert_with(|| BTreeMap::new());
                 // Terms loop
                 for (term, positions) in terms.term_positions.iter() {
                     //TODO Do we really need to_string ?
-                    let term_infos = field_info_builder.entry(term.to_string()).or_insert(TermInfos {
+                    let term_infos = field_info_builder.entry(term.to_string()).or_insert_with(|| TermInfos {
                         doc_ids: RoaringBitmap::new(),
                         positions: Vec::new(),
                     });
@@ -60,6 +59,7 @@ impl SegmentWriter {
     }
 
     pub fn index(index_path: &str, documents: &Vec<Document>) -> Result<()> {
+        println!("Index {} document(s)", documents.len());
         // Create the segment/transaction id
         let ctx = UuidV1Context::new(42);
         let v1uuid = Uuid::new_v1(&ctx, time::precise_time_s() as u64, time::precise_time_ns() as u32, &[1, 2, 3, 4, 5, 6]).unwrap();

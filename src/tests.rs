@@ -5,7 +5,7 @@ mod tests {
 
     #[test]
     fn create_index() {
-        let index = Index::open("target/test").unwrap();
+        let mut index = Index::open("target/test").unwrap();
         assert_eq!(index.path, "target/test");
 
         let mut documents = Vec::new();
@@ -32,6 +32,7 @@ mod tests {
         document4.field("content").term("the", 0).term("content", 1).term("of", 2).term("the", 3).term("document", 4).term("of", 5);
         documents.push(document4);
 
+        assert!(index.put(&documents).is_ok());
         assert!(index.put(&documents).is_ok());
     }
 

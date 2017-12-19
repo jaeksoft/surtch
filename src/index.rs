@@ -3,7 +3,6 @@ use reader::FieldReader;
 use document::Document;
 use std::path::Path;
 use std::fs;
-use uuid::Uuid;
 use writer::SegmentWriter;
 use fst::Result;
 
@@ -26,8 +25,7 @@ impl Index {
         for entry in fs::read_dir(p)? {
             let dir_entry = entry?;
             if dir_entry.file_type()?.is_dir() {
-                let field_name = dir_entry.file_name().into_string().unwrap();
-                fields.insert(field_name.to_string(), FieldReader::open(&index_path, &field_name)?);
+                fields.insert(dir_entry.file_name().into_string().unwrap(), FieldReader::open(dir_entry.path())?);
             }
         }
         return Ok(Index { path: index_path.to_string(), fields });
@@ -36,8 +34,11 @@ impl Index {
     ///
     /// Create a new segment which will contains all the documents
     ///
-    pub fn put(&self, documents: &Vec<Document>) -> Result<()> {
+    pub fn put(&mut self, documents: &Vec<Document>) -> Result<()> {
         SegmentWriter::index(&self.path, documents)?;
+        for mut reader in self.fields.values_mut() {
+            reader.reload()?;
+        }
         return Ok({});
     }
 }

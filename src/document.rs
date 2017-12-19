@@ -9,7 +9,7 @@ impl Document {
     }
 
     pub fn field(&mut self, field_name: &str) -> &mut Terms {
-        return self.fields.entry(field_name.to_string()).or_insert(Terms::new());
+        return self.fields.entry(field_name.to_string()).or_insert_with(|| Terms::new());
     }
 }
 
@@ -23,7 +23,7 @@ impl Terms {
     }
 
     pub fn term(&mut self, term: &str, position: u32) -> &mut Terms {
-        self.term_positions.entry(term.to_string()).or_insert(Vec::new()).push(position);
+        self.term_positions.entry(term.to_string()).or_insert_with(|| Vec::new()).push(position);
         return self;
     }
 }

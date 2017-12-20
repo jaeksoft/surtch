@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::fs;
 use fst::Result;
 use fst::Map;
-use std::io;
+use std::io::BufReader;
 use std::fs::File;
 use snap;
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -18,8 +18,7 @@ pub struct FieldReader {
 impl FieldReader {
     pub fn open(field_path: PathBuf) -> Result<FieldReader> {
         let segments: HashMap<Uuid, SegmentReader> = HashMap::new();
-        let mut field_reader = FieldReader { field_path, segments };
-        field_reader.reload()?;
+        let field_reader = FieldReader { field_path, segments };
         return Ok(field_reader);
     }
 
@@ -48,14 +47,12 @@ struct SegmentReader {
 
 impl SegmentReader {
     fn open(segment_path: PathBuf) -> Result<SegmentReader> {
-        /// Load FST
+        // Load FST
         let mut fst_path: PathBuf = segment_path.to_path_buf();
         fst_path.push("fst");
         let fst_map = Map::from_path(fst_path)?;
 
-        println!("Load segment: {}", segment_path.to_str().unwrap());
-
-        /// Load Term/Docs
+        // Load Term/Docs
         let term_docs = SegmentReader::read_term_docs(segment_path, fst_map.len() as u32)?;
         return Ok(SegmentReader { fst_map, term_docs });
     }
@@ -67,23 +64,21 @@ impl SegmentReader {
         // Prepare dox buffer
         let mut dox_path: PathBuf = segment_path.to_path_buf();
         dox_path.push("dox");
-        let mut dox_reader: snap::Reader<io::BufReader<File>> = snap::Reader::new(io::BufReader::new(File::open(&dox_path)?));
+        let mut dox_reader: snap::Reader<File> = snap::Reader::new(File::open(&dox_path)?);
 
-// Prepare docs buffer
+        // Prepare docs buffer
         let mut docs_path: PathBuf = segment_path.to_path_buf();
         docs_path.push("docs");
-        let mut docs_reader: snap::Reader<io::BufReader<File>> = snap::Reader::new(io::BufReader::new(File::open(&docs_path)?));
-
-//let mut docs_reader = io::BufReader::new(File::open(&docs_path)?);
+        let mut docs_reader: BufReader<File> = BufReader::new(File::open(&docs_path)?);
 
         let mut term_docs: HashMap<u32, RoaringBitmap> = HashMap::new();
 
-// Read the docs
+        // Read the docs
         for n in 0..term_count {
             let size: u32 = dox_reader.read_u32::<LittleEndian>()?;
-//Read the bitset bytes
+            //Read the bitset bytes
             let mut buffer: Vec<u8> = Vec::with_capacity(size as usize);
-            for m in 0..size as u32 {
+            for i in 0..size {
                 buffer.push(docs_reader.read_u8()?);
             }
             let bitset = RoaringBitmap::deserialize_from(&buffer[..])?;

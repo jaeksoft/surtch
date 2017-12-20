@@ -25,7 +25,7 @@ pub struct SegmentWriter {
     fst_builder: MapBuilder<BufWriter<File>>,
     dox_writer: snap::Writer<BufWriter<File>>,
     pox_writer: snap::Writer<BufWriter<File>>,
-    docs_writer: snap::Writer<BufWriter<File>>,
+    docs_writer: BufWriter<File>,
     posx_writer: snap::Writer<BufWriter<File>>,
     posi_writer: snap::Writer<BufWriter<File>>,
 }
@@ -81,16 +81,16 @@ impl SegmentWriter {
     /// Create new SegmentWriter
     ///
     fn new(index_path: &str, field_name: &str, segment_name: &str) -> Result<SegmentWriter> {
-        /// Create the directory
+        // Create the directory
         let segment_name_temp = segment_name.to_string() + ".temp";
         let segment_path_temp: PathBuf = [index_path, field_name, &segment_name_temp].iter().collect();
         let segment_path_final: PathBuf = [index_path, field_name, segment_name].iter().collect();
 
         fs::create_dir_all(&segment_path_temp)?;
-        /// Create the writers
+        // Create the writers
         let fst_builder = MapBuilder::new(SegmentWriter::new_file_writer(index_path, field_name, &segment_name_temp, "fst")?)?;
         let dox_writer = snap::Writer::new(SegmentWriter::new_file_writer(index_path, field_name, &segment_name_temp, "dox")?);
-        let docs_writer = snap::Writer::new(SegmentWriter::new_file_writer(index_path, field_name, &segment_name_temp, "docs")?);
+        let docs_writer = SegmentWriter::new_file_writer(index_path, field_name, &segment_name_temp, "docs")?;
         let pox_writer = snap::Writer::new(SegmentWriter::new_file_writer(index_path, field_name, &segment_name_temp, "pox")?);
         let posx_writer = snap::Writer::new(SegmentWriter::new_file_writer(index_path, field_name, &segment_name_temp, "posx")?);
         let posi_writer = snap::Writer::new(SegmentWriter::new_file_writer(index_path, field_name, &segment_name_temp, "posi")?);

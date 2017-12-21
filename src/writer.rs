@@ -12,9 +12,32 @@ use snap;
 use roaring::bitmap::RoaringBitmap;
 use byteorder::{LittleEndian, WriteBytesExt};
 use document::Document;
+use rayon::prelude::*;
 
 /// For one term, the documents ids and the positions in the current field
 struct TermInfos { doc_ids: RoaringBitmap, positions: Vec<Vec<u32>> }
+
+impl TermInfos {
+    /// Write the bitset
+    fn serialize_bitset(&self, write: &mut Write) -> Result<u32> {
+        self.doc_ids.serialize_into(write)?;
+        return Ok({ self.doc_ids.serialized_size() as u32 });
+    }
+
+    fn serialize_positions(&self, mut posx_offset: u32, mut posi_offset: u32, posx_writer: &mut Write, posi_writer: &mut Write) -> Result<(u32, u32)> {
+        for positions in self.positions.iter() {
+            posx_writer.write_u32::<LittleEndian>(posi_offset)?;
+            posx_writer.write_u32::<LittleEndian>(positions.len() as u32)?;
+            posx_offset += 8;
+            // Write positions
+            for position in positions {
+                posi_writer.write_u32::<LittleEndian>(*position)?;
+                posi_offset += 4;
+            }
+        }
+        return Ok({ (posx_offset, posi_offset) });
+    }
+}
 
 /// Per term -> TermInfos
 type TermMap = BTreeMap<String, TermInfos>;
@@ -67,13 +90,13 @@ impl SegmentWriter {
         let v1uuid = Uuid::new_v1(&ctx, time::precise_time_s() as u64, time::precise_time_ns() as u32, &[1, 2, 3, 4, 5, 6]).unwrap();
         let segment_name: String = v1uuid.hyphenated().to_string();
 
-        let field_infos = SegmentWriter::new_term_map(documents);
+        let mut field_infos = SegmentWriter::new_term_map(documents);
 
-        for (field_name, term_map) in field_infos {
-            let mut segment_writer = SegmentWriter::new(index_path, &field_name, &segment_name)?;
-            segment_writer.index_terms(term_map)?;
-            segment_writer.finish()?;
-        }
+        field_infos.par_iter_mut().for_each(|(field_name, term_map)| {
+            let mut segment_writer = SegmentWriter::new(index_path, &field_name, &segment_name).unwrap();
+            segment_writer.index_terms(term_map).unwrap();
+            segment_writer.finish().unwrap();
+        });
         return Ok({});
     }
 
@@ -105,36 +128,24 @@ impl SegmentWriter {
         return Ok(BufWriter::new(File::create(file_path)?));
     }
 
-    fn index_terms(&mut self, term_map: TermMap) -> Result<()> {
+    fn index_terms(&mut self, term_map: &TermMap) -> Result<()> {
         let mut term_idx: u64 = 0;
         let mut posx_offset: u32 = 0;
         let mut posi_offset: u32 = 0;
-        for (term, term_infos) in term_map {
+        for (term, term_infos) in term_map.iter() {
             // Write FST
             self.fst_builder.insert(&term, term_idx)?;
 
             //Write DOCS bitset
-            let rb: RoaringBitmap = term_infos.doc_ids;
-            let rb_size: u32 = rb.serialized_size() as u32;
-            rb.serialize_into(&mut self.docs_writer)?;
-
+            let rb_size: u32 = term_infos.serialize_bitset(&mut self.docs_writer)?;
             // Write DOX -> offset to bitset AND size of the serialized RoaringBitmap
             self.dox_writer.write_u32::<LittleEndian>(rb_size)?;
 
             //Write POX
             self.pox_writer.write_u32::<LittleEndian>(posx_offset)?;
-            for positions in term_infos.positions {
-                //println!("IDX: {} - DOX: {} - POSX: {} - POSI: {}", term_idx, docs_offset, posx_offset, posi_offset);
-                //Write POSX = current position offset and positions length
-                self.posx_writer.write_u32::<LittleEndian>(posi_offset)?;
-                self.posx_writer.write_u32::<LittleEndian>(positions.len() as u32)?;
-                posx_offset += 8;
-                // Write positions
-                for position in positions {
-                    self.posi_writer.write_u32::<LittleEndian>(position)?;
-                    posi_offset += 4;
-                }
-            }
+            let r = term_infos.serialize_positions(posx_offset, posi_offset, &mut self.posx_writer, &mut self.posi_writer)?;
+            posx_offset = r.0;
+            posi_offset = r.1;
             term_idx += 1;
         }
         return Ok({});

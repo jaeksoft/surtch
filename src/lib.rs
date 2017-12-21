@@ -5,6 +5,7 @@ extern crate snap;
 extern crate roaring;
 extern crate byteorder;
 extern crate conv;
+extern crate rayon;
 
 pub mod writer;
 pub mod reader;

@@ -3,9 +3,11 @@ use reader::FieldReader;
 use document::Document;
 use std::path::{Path, PathBuf};
 use std::fs;
+use std::fs::DirEntry;
 use writer::SegmentWriter;
 use fst::Result;
 use query::Query;
+use rayon::prelude::*;
 
 pub struct Index {
     /// The path of the index directory
@@ -28,14 +30,16 @@ impl Index {
     }
 
     fn reload(&mut self) -> Result<()> {
+        // List the field directories
         for entry in fs::read_dir(self.path.as_path())? {
             let dir_entry = entry?;
             if dir_entry.file_type()?.is_dir() {
                 let file_name = dir_entry.file_name().into_string().unwrap();
                 let field_reader = self.fields.entry(file_name).or_insert_with(|| FieldReader::open(dir_entry.path()).unwrap());
-                field_reader.reload()?;
             }
         }
+        // Concurrent reload
+        self.fields.par_iter_mut().for_each(|(field_name, field_reader)| field_reader.reload().unwrap());
         return Ok({});
     }
 

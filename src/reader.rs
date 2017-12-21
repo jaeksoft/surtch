@@ -10,6 +10,10 @@ use snap;
 use byteorder::{LittleEndian, ReadBytesExt};
 use roaring::bitmap::RoaringBitmap;
 
+///
+/// A FieldReader is in charge of maintaining a list of segments in memory.
+/// The segments are stored in a directory which contains the segments.
+///
 pub struct FieldReader {
     field_path: PathBuf,
     segments: HashMap<Uuid, SegmentReader>,
@@ -23,7 +27,9 @@ impl FieldReader {
     }
 
     ///
-    /// Load the segments from the file system.
+    /// Parse the field directory and load the segments from the file system.
+    /// It can be called again to load only the missing segments.
+    /// Already loaded segments are not loaded again.
     ///
     pub fn reload(&mut self) -> Result<()> {
         for entry in fs::read_dir(&self.field_path)? {

@@ -10,6 +10,7 @@ pub mod writer;
 pub mod reader;
 pub mod index;
 pub mod document;
+pub mod query;
 
 #[cfg(test)]
 mod tests;

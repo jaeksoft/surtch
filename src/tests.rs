@@ -2,6 +2,7 @@
 mod tests {
     use index::Index;
     use document::Document;
+    use query::{BooleanQuery, Occur};
     use std::path::Path;
 
     #[test]
@@ -33,7 +34,16 @@ mod tests {
         document4.field("content").term("the", 0).term("content", 1).term("of", 2).term("the", 3).term("document", 4).term("of", 5);
         documents.push(document4);
 
+        // Index documents
         assert!(index.put(&documents).is_ok());
+
+        // Search for document
+        let mut query = BooleanQuery::new(0);
+        query.term("id", "id3", Occur::Must).term("title", "third", Occur::Must);
+
+        assert!(index.find(&query).is_ok());
+
+        // Index documents again
         assert!(index.put(&documents).is_ok());
     }
 

@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::fs;
 use writer::SegmentWriter;
 use fst::Result;
+use query::Query;
 
 pub struct Index {
     /// The path of the index directory
@@ -44,6 +45,10 @@ impl Index {
     pub fn put(&mut self, documents: &Vec<Document>) -> Result<()> {
         SegmentWriter::index(self.path.to_str().unwrap(), documents)?;
         self.reload()?;
+        return Ok({});
+    }
+
+    pub fn find(&self, query: &Query) -> Result<()> {
         return Ok({});
     }
 }

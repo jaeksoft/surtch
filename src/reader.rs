@@ -31,9 +31,7 @@ impl FieldReader {
             if dir_entry.file_type()?.is_dir() {
                 let segment_name = dir_entry.file_name().into_string().unwrap();
                 let segment_uuid = Uuid::parse_str(&segment_name).unwrap();
-                if !self.segments.contains_key(&segment_uuid) {
-                    self.segments.entry(segment_uuid).or_insert(SegmentReader::open(dir_entry.path())?);
-                }
+                self.segments.entry(segment_uuid).or_insert_with(|| SegmentReader::open(dir_entry.path()).unwrap());
             }
         }
         return Ok({});
@@ -47,10 +45,11 @@ struct SegmentReader {
 
 impl SegmentReader {
     fn open(segment_path: PathBuf) -> Result<SegmentReader> {
+        println!("Load segment: {}", segment_path.to_str().unwrap());
         // Load FST
         let mut fst_path: PathBuf = segment_path.to_path_buf();
         fst_path.push("fst");
-        let fst_map = Map::from_path(fst_path)?;
+        let fst_map = unsafe { Map::from_path(fst_path)? };
 
         // Load Term/Docs
         let term_docs = SegmentReader::read_term_docs(segment_path, fst_map.len() as u32)?;

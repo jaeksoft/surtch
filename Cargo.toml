@@ -4,10 +4,10 @@ version = "0.1.0"
 authors = ["Emmanuel Keller <ekeller@open-search-server.com>"]
 
 [dependencies]
-fst = "0.2"
+fst = "0.3"
 uuid = { version = "0.5", features = ["v1"] }
 time = "0.1"
 snap = "0.2"
-roaring = "0.5.2"
+roaring = "0.5"
 byteorder = "1"
-conv = "0.3.3"
+conv = "0.3"

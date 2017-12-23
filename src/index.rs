@@ -14,6 +14,7 @@ pub struct Index {
     pub path: PathBuf,
     /// The available catalogs
     fields: HashMap<String, FieldReader>,
+    record_count: u64,
 }
 
 impl Index {
@@ -24,7 +25,7 @@ impl Index {
         }
         // Read the fields
         let fields = HashMap::new();
-        let mut index = Index { path: index_path.to_path_buf(), fields };
+        let mut index = Index { path: index_path.to_path_buf(), fields, record_count: 0 };
         index.reload()?;
         return Ok(index);
     }
@@ -40,6 +41,14 @@ impl Index {
         }
         // Concurrent reload
         self.fields.par_iter_mut().for_each(|(field_name, field_reader)| field_reader.reload().unwrap());
+
+        let mut record_count: u64 = 0;
+        for field_reader in self.fields.values() {
+            if field_reader.record_count > record_count {
+                record_count = field_reader.record_count;
+            }
+        }
+        self.record_count = record_count;
         return Ok({});
     }
 
@@ -47,12 +56,13 @@ impl Index {
     /// Create a new segment which will contains all the documents
     ///
     pub fn put(&mut self, documents: &Vec<Document>) -> Result<()> {
-        SegmentWriter::index(self.path.to_str().unwrap(), documents)?;
+        SegmentWriter::index(self.path.to_str().unwrap(), self.record_count, documents)?;
         self.reload()?;
         return Ok({});
     }
 
     pub fn find(&self, query: &Query) -> Result<()> {
+        query.execute(&self.fields);
         return Ok({});
     }
 }

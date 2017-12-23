@@ -6,6 +6,7 @@ use fst::Result;
 use fst::Map;
 use std::io::BufReader;
 use std::fs::File;
+use std::str::Split;
 use snap;
 use byteorder::{LittleEndian, ReadBytesExt};
 use roaring::bitmap::RoaringBitmap;
@@ -17,12 +18,13 @@ use roaring::bitmap::RoaringBitmap;
 pub struct FieldReader {
     field_path: PathBuf,
     segments: HashMap<Uuid, SegmentReader>,
+    pub record_count: u64,
 }
 
 impl FieldReader {
     pub fn open(field_path: PathBuf) -> Result<FieldReader> {
         let segments: HashMap<Uuid, SegmentReader> = HashMap::new();
-        let field_reader = FieldReader { field_path, segments };
+        let field_reader = FieldReader { field_path, segments, record_count: 0 };
         return Ok(field_reader);
     }
 
@@ -32,14 +34,27 @@ impl FieldReader {
     /// Already loaded segments are not loaded again.
     ///
     pub fn reload(&mut self) -> Result<()> {
+        let mut record_count: u64 = 0;
         for entry in fs::read_dir(&self.field_path)? {
             let dir_entry = entry?;
             if dir_entry.file_type()?.is_dir() {
                 let segment_name = dir_entry.file_name().into_string().unwrap();
-                let segment_uuid = Uuid::parse_str(&segment_name).unwrap();
-                self.segments.entry(segment_uuid).or_insert_with(|| SegmentReader::open(dir_entry.path()).unwrap());
+                let mut split = segment_name.split(".");
+                let segment_uuid = Uuid::parse_str(split.next().unwrap()).unwrap();
+                let segment_reader = self.segments.entry(segment_uuid).or_insert_with(|| {
+                    let segment_offset_str = split.next().unwrap();
+                    let segment_offset: u64 = segment_offset_str.parse().unwrap();
+                    let segment_doc_count_str = split.next().unwrap();
+                    let segment_doc_count: u32 = segment_doc_count_str.parse().unwrap();
+                    return SegmentReader::open(dir_entry.path(), segment_offset, segment_doc_count).unwrap();
+                });
+                let new_record_count = segment_reader.offset + segment_reader.doc_count as u64;
+                if (new_record_count > record_count) {
+                    record_count = new_record_count;
+                }
             }
         }
+        self.record_count = record_count;
         return Ok({});
     }
 }
@@ -47,10 +62,12 @@ impl FieldReader {
 struct SegmentReader {
     fst_map: Map,
     term_docs: HashMap<u32, RoaringBitmap>,
+    offset: u64,
+    doc_count: u32,
 }
 
 impl SegmentReader {
-    fn open(segment_path: PathBuf) -> Result<SegmentReader> {
+    fn open(segment_path: PathBuf, offset: u64, doc_count: u32) -> Result<SegmentReader> {
         println!("Load segment: {}", segment_path.to_str().unwrap());
         // Load FST
         let mut fst_path: PathBuf = segment_path.to_path_buf();
@@ -59,7 +76,7 @@ impl SegmentReader {
 
         // Load Term/Docs
         let term_docs = SegmentReader::read_term_docs(segment_path, fst_map.len() as u32)?;
-        return Ok(SegmentReader { fst_map, term_docs });
+        return Ok(SegmentReader { fst_map, term_docs, offset, doc_count });
     }
 
     ///

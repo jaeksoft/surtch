@@ -23,20 +23,6 @@ impl TermInfos {
         self.doc_ids.serialize_into(write)?;
         return Ok({ self.doc_ids.serialized_size() as u32 });
     }
-
-    fn serialize_positions(&self, mut posx_offset: u32, mut posi_offset: u32, posx_writer: &mut Write, posi_writer: &mut Write) -> Result<(u32, u32)> {
-        for positions in self.positions.iter() {
-            posx_writer.write_u32::<LittleEndian>(posi_offset)?;
-            posx_writer.write_u32::<LittleEndian>(positions.len() as u32)?;
-            posx_offset += 8;
-            // Write positions
-            for position in positions {
-                posi_writer.write_u32::<LittleEndian>(*position)?;
-                posi_offset += 4;
-            }
-        }
-        return Ok({ (posx_offset, posi_offset) });
-    }
 }
 
 /// Per term -> TermInfos
@@ -54,7 +40,7 @@ pub struct SegmentWriter {
 }
 
 impl SegmentWriter {
-    fn new_term_map(documents: &Vec<Document>) -> BTreeMap<String, TermMap> {
+    fn new_term_map(documents: &Vec<Document>) -> (u32, BTreeMap<String, TermMap>) {
         let mut field_infos: BTreeMap<String, TermMap> = BTreeMap::new();
 
         let mut doc_num: u32 = 0;
@@ -80,20 +66,19 @@ impl SegmentWriter {
             }
             doc_num += 1;
         }
-        return field_infos;
+        return (doc_num, field_infos);
     }
 
-    pub fn index(index_path: &str, documents: &Vec<Document>) -> Result<()> {
+    pub fn index(index_path: &str, new_offset: u64, documents: &Vec<Document>) -> Result<()> {
         println!("Index {} document(s)", documents.len());
         // Create the segment/transaction id
         let ctx = UuidV1Context::new(42);
-        let v1uuid = Uuid::new_v1(&ctx, time::precise_time_s() as u64, time::precise_time_ns() as u32, &[1, 2, 3, 4, 5, 6]).unwrap();
-        let segment_name: String = v1uuid.hyphenated().to_string();
+        let segment_uuid = Uuid::new_v1(&ctx, time::precise_time_s() as u64, time::precise_time_ns() as u32, &[1, 2, 3, 4, 5, 6]).unwrap();
 
-        let mut field_infos = SegmentWriter::new_term_map(documents);
+        let (doc_count, mut field_infos) = SegmentWriter::new_term_map(documents);
 
         field_infos.par_iter_mut().for_each(|(field_name, term_map)| {
-            let mut segment_writer = SegmentWriter::new(index_path, &field_name, &segment_name).unwrap();
+            let mut segment_writer = SegmentWriter::new(index_path, &field_name, &segment_uuid, new_offset, doc_count).unwrap();
             segment_writer.index_terms(term_map).unwrap();
             segment_writer.finish().unwrap();
         });
@@ -103,11 +88,13 @@ impl SegmentWriter {
     ///
     /// Create new SegmentWriter
     ///
-    fn new(index_path: &str, field_name: &str, segment_name: &str) -> Result<SegmentWriter> {
+    fn new(index_path: &str, field_name: &str, segment_uuid: &Uuid, offset: u64, count: u32) -> Result<SegmentWriter> {
         // Create the directory
-        let segment_name_temp = segment_name.to_string() + ".temp";
+        let segment_name = segment_uuid.hyphenated().to_string();
+        let segment_name_temp = format!("{}.temp", segment_name);
+        let segment_name_final = format!("{}.{}.{}", segment_name, offset, count);
         let segment_path_temp: PathBuf = [index_path, field_name, &segment_name_temp].iter().collect();
-        let segment_path_final: PathBuf = [index_path, field_name, segment_name].iter().collect();
+        let segment_path_final: PathBuf = [index_path, field_name, &segment_name_final].iter().collect();
 
         fs::create_dir_all(&segment_path_temp)?;
         // Create the writers
@@ -143,9 +130,18 @@ impl SegmentWriter {
 
             //Write POX
             self.pox_writer.write_u32::<LittleEndian>(posx_offset)?;
-            let r = term_infos.serialize_positions(posx_offset, posi_offset, &mut self.posx_writer, &mut self.posi_writer)?;
-            posx_offset = r.0;
-            posi_offset = r.1;
+
+            for positions in term_infos.positions.iter() {
+                self.posx_writer.write_u32::<LittleEndian>(posi_offset)?;
+                self.posx_writer.write_u32::<LittleEndian>(positions.len() as u32)?;
+                posx_offset += 8;
+                // Write positions
+                for position in positions {
+                    self.posi_writer.write_u32::<LittleEndian>(*position)?;
+                    posi_offset += 4;
+                }
+            }
+
             term_idx += 1;
         }
         return Ok({});
